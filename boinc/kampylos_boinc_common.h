@@ -22,9 +22,12 @@
 // seed loop consumes that flag after almost every seed, so the cell checkpoint used to be
 // skipped at most cell boundaries, and the next restart then threw away a finished cell.
 // On resume the result file is the authoritative record of finished cells (a line is only ever
-// written after its cell completed; a torn last line is dropped): the WU resumes from
-// min(checkpoint, complete lines) and never truncates an output that still has good lines --
-// a lost or stale checkpoint file costs nothing.
+// written after its cell completed; a torn last line is dropped): the WU resumes from the
+// number of complete lines in "out", whatever the checkpoint file says, and never truncates an
+// output that still has good lines -- a lost, stale or not-yet-updated checkpoint file costs
+// nothing. (Until 2026-10-12 it resumed from min(checkpoint, complete lines): a kill in the
+// gap between a cell's line reaching "out" and its checkpoint write then redid that whole cell,
+// hours of work, for nothing.)
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -173,8 +176,8 @@ static void kampylos_boinc_compute_anchor(KampylosBoincJob &job) {
     kampylos_log_anchor(stderr, job.anchor);
 }
 
-// Opens "out": fresh (header written) on a first run, trimmed back to the finished cells on a
-// resume. Returns 0 on success.
+// Opens "out": fresh (header written) on a first run; on a resume, continues after its complete
+// cell lines (a torn last line is cut off first). Returns 0 on success.
 static int kampylos_boinc_open_output(KampylosBoincJob &job, const char *backend) {
     char out_path[512];
     if (boinc_resolve_filename("out", out_path, sizeof(out_path))) {
@@ -185,9 +188,8 @@ static int kampylos_boinc_open_output(KampylosBoincJob &job, const char *backend
     int have = kampylos_count_complete_cells(out_path);           // -1: no usable output yet
     job.start_cell = 0;
     if (have >= 0) {
-        job.start_cell = (checkpoint >= 0) ? std::min(checkpoint, have) : have;
-        job.start_cell = std::min(job.start_cell, job.total);
-        if (checkpoint > have)
+        job.start_cell = std::min(have, job.total);
+        if (checkpoint >= 0 && checkpoint != have)
             fprintf(stderr, "checkpoint says %d cells done but the output file holds %d complete cells -- resuming from %d\n",
                     checkpoint, have, job.start_cell);
         else if (checkpoint < 0 && have > 0)

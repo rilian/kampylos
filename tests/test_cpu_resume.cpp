@@ -117,6 +117,14 @@ int main(int argc, char** argv) {
         fclose(f);
         check(kampylos_count_complete_cells(path.c_str()) == 2, "torn last line is not counted");
         check(!kampylos_trim_output(path.c_str(), 3), "cannot trim to more cells than there are");
+        check(kampylos_trim_output(path.c_str(), 2), "trim to the 2 complete cells");
+        std::string whole;
+        kampylos_split_output(path.c_str(), -1, nullptr, &whole);
+        check(whole == "# grid=log10 log10_s log10_q chi2\n# anchor format=2 backend=cpu\n0.2 -5 1.0\n0.2 -4 2.0\n", "only the torn line was cut");
+        check(kampylos_trim_output(path.c_str(), 2), "trimming an intact file to its own length succeeds");
+        std::string again;
+        kampylos_split_output(path.c_str(), -1, nullptr, &again);
+        check(again == whole, "and leaves it unchanged");
         check(kampylos_trim_output(path.c_str(), 1), "trim to 1 cell");
         check(kampylos_count_complete_cells(path.c_str()) == 1, "1 complete cell after the trim");
         std::string kept;

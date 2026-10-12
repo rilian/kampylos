@@ -19,7 +19,14 @@
 // progress and, when the host asks, writes its complete state (phase, per-seed results, the
 // active set and every live NelderMeadStepper) as text; on the next call for the same cell it
 // resumes from that state. Seeds and rounds are deterministic for a given backend, so the
-// resumed cell is bit-identical to an uninterrupted one (tests/test_batched_resume.cpp).
+// resumed cell is bit-identical to an uninterrupted one (tests/test_batched_resume.cpp) -- up
+// to one caveat in the completion step: VBMicrolensing's BinaryMag0 starts its root solver from
+// the previous call's roots (cmplx_roots_gen(..., use_roots_as_starting_points = true), a
+// thread_local array), so a fresh process's instances can return a magnification that differs
+// in its last bits from the instance with the full history, and Nelder-Mead can then take a
+// slightly different path. Measured (tests/test_boinc_resume.sh, Metal, three runs of 8-9
+// in-cell resumes each): the first cell identical every time, the second cell's rho different
+// by 0.03-0.2 % every time, chi2 identical to four decimals -- the same chi2 valley.
 #include <vector>
 #include <string>
 #include <sstream>

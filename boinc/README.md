@@ -58,9 +58,11 @@ Two files in the slot directory, both written atomically (temporary file + renam
 | `kampylos_seed_checkpoint` | CPU app only: cell index, next seed, best fit so far (`src/kampylos_cpu_cell.h`); written whenever BOINC asks for a checkpoint, removed when the cell completes |
 | `kampylos_batched_checkpoint` | GPU apps only: the batched Nelder-Mead driver's full state between two rounds (`src/kampylos_batched_fit.h`), a few hundred KB of text; same timing as the seed checkpoint |
 
-On a restart the app resumes from `min(kampylos_checkpoint, complete lines in out)`; the result file is the
-authoritative record of finished cells, so a missing or stale checkpoint file never costs a finished cell. Inside a
-cell both the CPU and the GPU apps resume bit-identically, and report progress after every seed / every round.
+On a restart the app resumes after the complete cell lines in `out` (a torn last line is cut off; the checkpoint
+file is only cross-checked and logged): the result file is the authoritative record of finished cells, so a missing,
+stale or not-yet-updated checkpoint file never costs a finished cell. Inside a cell both the CPU and the GPU apps
+resume bit-identically (up to the last bits of VBMicrolensing's root-solver warm start, see `src/kampylos_batched_fit.h`),
+and report progress after every seed / every round.
 
 ## Tests
 

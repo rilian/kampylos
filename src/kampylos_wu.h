@@ -292,7 +292,8 @@ void kampylos_run_cells(FILE* fout, FILE* log, const KampylosWuInput& in, const 
 // data lines (keep_cells < 0 = all of them). A trailing line without '\n' is a torn write from
 // an interrupted run and is dropped. Returns the number of complete data lines kept, or -1 if
 // the file cannot be read or does not start with the format-2 header.
-inline int kampylos_split_output(const char* path, int keep_cells, std::string* kept_out) {
+// whole_out, if given, receives the file as it is on disk.
+inline int kampylos_split_output(const char* path, int keep_cells, std::string* kept_out, std::string* whole_out = nullptr) {
     FILE* f = fopen(path, "rb");
     if (!f) return -1;
     std::string content, kept;
@@ -300,6 +301,7 @@ inline int kampylos_split_output(const char* path, int keep_cells, std::string* 
     size_t n;
     while ((n = fread(buf, 1, sizeof(buf), f)) > 0) content.append(buf, n);
     fclose(f);
+    if (whole_out) *whole_out = content;
     if (content.compare(0, 7, "# grid=") != 0) return -1;
     size_t pos = 0;
     int data_lines = 0;
@@ -323,16 +325,26 @@ inline int kampylos_count_complete_cells(const char* path) {
 }
 
 // On a resumed run, cut the output file back to its header lines plus the first `keep_cells`
-// data lines, so a cell whose line was written but whose checkpoint was not is not duplicated.
-// Returns false if the file cannot be read back, does not start with the format-2 header, or
-// holds fewer than keep_cells complete lines (the caller then restarts the WU from cell 0).
+// data lines (in practice: drop the torn last line of a run killed mid-write). Returns false if
+// the file cannot be read back, does not start with the format-2 header, or holds fewer than
+// keep_cells complete lines (the caller then restarts the WU from cell 0).
+// A file that needs no cutting is left untouched, and one that does is replaced through a
+// temporary file and a rename: rewriting "out" in place meant a kill during the rewrite left an
+// empty file, and the next start then redid every cell. rename() cannot replace an existing
+// file on Windows; there the old file is removed first (BOINC's own boinc_rename does the same).
 inline bool kampylos_trim_output(const char* path, int keep_cells) {
-    std::string kept;
-    int data_lines = kampylos_split_output(path, keep_cells, &kept);
+    std::string kept, whole;
+    int data_lines = kampylos_split_output(path, keep_cells, &kept, &whole);
     if (data_lines < keep_cells) return false;
-    FILE* f = fopen(path, "wb");
+    if (kept == whole) return true;
+    std::string tmp = std::string(path) + ".trim";
+    FILE* f = fopen(tmp.c_str(), "wb");
     if (!f) return false;
-    fwrite(kept.data(), 1, kept.size(), f);
-    fclose(f);
-    return true;
+    bool ok = fwrite(kept.data(), 1, kept.size(), f) == kept.size();
+    ok = (fclose(f) == 0) && ok;
+    if (!ok) { remove(tmp.c_str()); return false; }
+#ifdef _WIN32
+    remove(path);
+#endif
+    return rename(tmp.c_str(), path) == 0;
 }

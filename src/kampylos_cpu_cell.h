@@ -7,8 +7,10 @@
 // grid cell, and one cell can run for many hours (dozens of seeds x a restart-backed simplex
 // over thousands of data points). With only a between-cells checkpoint a restart lost
 // everything. Seeds are deterministic and the best chi2 wins, so a resumed cell gives exactly
-// the uninterrupted result. The checkpoint is only used for the cell it names; if it belongs to
-// an older cell, the cell is simply redone.
+// the uninterrupted result (up to VBMicrolensing's root-solver warm start, see the note in
+// kampylos_batched_fit.h: the first evaluations after a resume start the root polish from zero
+// instead of the previous roots, a last-bits difference). The checkpoint is only used for the
+// cell it names; if it belongs to an older cell, the cell is simply redone.
 //
 // Seed-split work units (input token "part i K", CPU app v12): this part fits only the seeds
 // with k % K == i (interleaved, so the K parts cost about the same); the server keeps the lowest
