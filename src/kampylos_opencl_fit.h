@@ -29,6 +29,9 @@ struct OpenCLFitContext {
     cl_mem d_cand = nullptr;
     cl_mem d_res = nullptr;
     int cand_capacity = 0;
+    int local_size = 128;                // work-items per candidate (a power of two; the kernel's
+                                         // reduction needs one), lowered to what the device and
+                                         // this kernel allow -- see opencl_fit_select_device()
 
     ~OpenCLFitContext();
 };

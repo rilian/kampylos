@@ -114,6 +114,25 @@ bool opencl_fit_select_device(OpenCLFitContext& ctx, int device_id, std::string*
     }
     ctx.kernel = cl_api.CreateKernel(ctx.program, "kampylos_eval_candidates", &err);
     if (!ctx.kernel) { if (err_out) *err_out = "clCreateKernel failed"; return false; }
+
+    // Work-group size (2026-10-12). It was a hard-coded 128, which every desktop GPU allows but
+    // not every OpenCL device: CL_DEVICE_MAX_WORK_GROUP_SIZE is 64 on some embedded/older GPUs,
+    // and a register-heavy kernel like this one (the quintic solver, all in double) can be
+    // limited below the device maximum by the driver (CL_KERNEL_WORK_GROUP_SIZE). Since the
+    // error checks of 2026-10-10 such a host failed every launch with CL_INVALID_WORK_GROUP_SIZE
+    // (before, it silently used the previous round's results). The device maximum is applied
+    // here; the kernel-specific limit is only known through clGetKernelWorkGroupInfo, which the
+    // loader table (cl_dynload.h) does not carry, so that case is caught at the first launch
+    // instead (opencl_eval_batch halves the size on CL_INVALID_WORK_GROUP_SIZE). The kernel
+    // reads get_local_size(), so any power of two works; the per-candidate sums are then added
+    // in a different order, a rounding-level difference that is the same for every round of a
+    // run and its resume on the same device.
+    ctx.local_size = 128;
+    size_t max_wg = 0;
+    if (cl_api.GetDeviceInfo(ctx.device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(max_wg), &max_wg, NULL) == CL_SUCCESS && max_wg > 0)
+        while ((size_t)ctx.local_size > max_wg && ctx.local_size > 1) ctx.local_size /= 2;
+    if (ctx.local_size < 128)
+        fprintf(stderr, "opencl_fit_select_device: work-group size %d (device maximum %lu)\n", ctx.local_size, (unsigned long)max_wg);
     return true;
 }
 
@@ -168,8 +187,6 @@ static std::vector<double> opencl_eval_batch(
     CL_CHECK("clEnqueueWriteBuffer(candidates)",
              cl_api.EnqueueWriteBuffer(ctx.queue, ctx.d_cand, CL_TRUE, 0, n * sizeof(Candidate), points.data(), 0, NULL, NULL));
 
-    int local_size = 128;
-    size_t sh_bytes = 7 * local_size * sizeof(double);
     CL_CHECK("clSetKernelArg(0)", cl_api.SetKernelArg(ctx.kernel, 0, sizeof(cl_mem), &ctx.d_data));
     CL_CHECK("clSetKernelArg(1)", cl_api.SetKernelArg(ctx.kernel, 1, sizeof(int), &ctx.n_points));
     CL_CHECK("clSetKernelArg(2)", cl_api.SetKernelArg(ctx.kernel, 2, sizeof(double), &s));   // linear s, q (2026-10-08)
@@ -177,13 +194,27 @@ static std::vector<double> opencl_eval_batch(
     CL_CHECK("clSetKernelArg(4)", cl_api.SetKernelArg(ctx.kernel, 4, sizeof(cl_mem), &ctx.d_cand));
     CL_CHECK("clSetKernelArg(5)", cl_api.SetKernelArg(ctx.kernel, 5, sizeof(int), &n));
     CL_CHECK("clSetKernelArg(6)", cl_api.SetKernelArg(ctx.kernel, 6, sizeof(cl_mem), &ctx.d_res));
-    CL_CHECK("clSetKernelArg(7)", cl_api.SetKernelArg(ctx.kernel, 7, sh_bytes, NULL));
     CL_CHECK("clSetKernelArg(8)", cl_api.SetKernelArg(ctx.kernel, 8, sizeof(int), NULL));
     CL_CHECK("clSetKernelArg(9)", cl_api.SetKernelArg(ctx.kernel, 9, sizeof(int), NULL));
 
-    size_t global_size = (size_t)n * local_size;
-    size_t local_size_t = (size_t)local_size;
-    CL_CHECK("clEnqueueNDRangeKernel", cl_api.EnqueueNDRangeKernel(ctx.queue, ctx.kernel, 1, NULL, &global_size, &local_size_t, 0, NULL, NULL));
+    // One work-group per candidate, ctx.local_size work-items each (see opencl_fit_select_device
+    // for how that size is chosen and why a launch may still refuse it).
+    for (;;) {
+        int local_size = ctx.local_size;
+        size_t sh_bytes = 7 * local_size * sizeof(double);
+        CL_CHECK("clSetKernelArg(7)", cl_api.SetKernelArg(ctx.kernel, 7, sh_bytes, NULL));
+        size_t global_size = (size_t)n * local_size;
+        size_t local_size_t = (size_t)local_size;
+        cl_int e = cl_api.EnqueueNDRangeKernel(ctx.queue, ctx.kernel, 1, NULL, &global_size, &local_size_t, 0, NULL, NULL);
+        if (e == CL_SUCCESS) break;
+        if (e == CL_INVALID_WORK_GROUP_SIZE && local_size > 8) {
+            ctx.local_size = local_size / 2;
+            fprintf(stderr, "opencl_fit: this device refuses work-group size %d for the kernel (CL_INVALID_WORK_GROUP_SIZE), using %d\n",
+                    local_size, ctx.local_size);
+            continue;
+        }
+        opencl_fail("clEnqueueNDRangeKernel", e);
+    }
     CL_CHECK("clFinish", cl_api.Finish(ctx.queue));
 
     std::vector<CandidateResult> h_res(n);
