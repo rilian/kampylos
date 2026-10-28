@@ -316,6 +316,9 @@ def lint(repo, strict=False):
             repo.err(where, "Commit must be the commit that was checked (7+ hex digits)")
         if not row["Evidence"]:
             repo.err(where, "Evidence is empty: say what was looked at (file:line or why n/a)")
+        elif status == "affected" and len(row["Evidence"]) > 200:
+            repo.warn(where, "Evidence is %d characters; for an affected row say where in one clause, the issue has "
+                             "the rest" % len(row["Evidence"]))
         ids = re.findall(r"[A-Z]+-\d+", row["Issue"])
         if status in ("affected", "fixed") and not ids:
             repo.err(where, "status %s needs a local issue in the Issue column" % status)
@@ -1038,12 +1041,22 @@ def main():
     p.add_argument("pattern")
     p.add_argument("repos", nargs="*")
     p.add_argument("--limit", type=int, default=8, help="hits shown per repository (default 8)")
-    p = sub.add_parser("sync", help="make docs/kb/shared identical in this and the given repositories")
+    p = sub.add_parser("sync", help="make docs/kb/shared identical in this and the given repositories", description=(
+        "Copies the newest version of every shared file to all the repositories. A file that changed since its "
+        "repository's last sync (compared with that repository's MANIFEST) wins. If the same file was changed "
+        "differently in two repositories, sync stops without writing anything and names the file: merge it by hand in "
+        "one repository and sync again. Run it from the repository with the newest edits, with all the others as "
+        "arguments, then commit docs/kb in each. Every repository also gets an 'unchecked' ledger row for a new "
+        "pattern, and a new INDEX.md."))
     p.add_argument("repos", nargs="+")
     p.add_argument("--dry-run", action="store_true")
     p = sub.add_parser("status", help="cross-repository report (printed only)")
     p.add_argument("repos", nargs="*")
-    p = sub.add_parser("init", help="start a knowledge base in this repository")
+    p = sub.add_parser("init", help="start a knowledge base in this repository", description=(
+        "Adding a repository: from an existing one, 'python3 docs/kb/shared/kb.py sync ../newrepo' copies the shared "
+        "files into it; then in the new repository 'python3 docs/kb/shared/kb.py init --name newrepo --prefix NEW' "
+        "creates kb.conf, ledger.md (every pattern unchecked), README.md and INDEX.md. Then check the patterns. Pick "
+        "a prefix that is not in the table at the end of PROCESS.md."))
     p.add_argument("--name", required=True)
     p.add_argument("--prefix", required=True, help="issue id prefix, 2-5 capital letters")
     args, extra = ap.parse_known_args()      # key=value pairs may also come after an option

@@ -1,8 +1,8 @@
 # sha256 of every file in docs/kb/shared as of the last kb.py sync; do not edit by hand
 c2df4f2896a786478c49cc8cc1bb18d520ebe80e018c42641aacd84448dee991  .gitignore
-7b083e1e8cf056c48d152986a7141065e475f22c66b5cdc765ce74797cd2814c  PROCESS.md
+2e658a64729ab8965db4e7d882f9e36a452b0528a1efd1d934422d7203c47b01  PROCESS.md
 d826f65bee48c3484385802dccdfab171fb3b2f6aab7214e0e8f6e96f4d9e42b  boinc-api.md
-33549f225c26a62a3419b6fe6f8b3f5508c7473fc64043b354b193758bd60726  kb.py
+fd077358f730340f5d522a1b99af8a6684869b7316cd02bb6de10b858d4fc0aa  kb.py
 f6baa4ca06c87e8a3b0d873265ea1f5c095c455db8a9434ec7442e6e5f5f117c  patterns/PAT-001-checkpoint-critical-section-left-open.md
 9cea593949398e0ff5debc5d0d0b92818d41e69bca7adf9ff82087e32cc773e5  patterns/PAT-002-output-after-checkpoint-kept-on-resume.md
 475237bdd9812536fba4bd26340325d25077eb3ec6268bb4bfc7aa23884b3fa5  patterns/PAT-003-checkpoint-not-written-atomically.md
@@ -35,6 +35,6 @@ b71e5f3f6937b03882c66566e0a59e7c415a48577ee891d86f35f15a34c1103f  patterns/PAT-0
 23581085812b25ffe966f6e442001f9d4b522224eeb19fd56bf25ef064dbbd0a  patterns/PAT-030-repeated-temporary-exits-hit-the-client-limit.md
 841d9db71e2954d4a0b19ae8568dc4f0c94ffb0c258636b1863753619247856a  templates/README.md
 2d363ceb56d7ea20f82e940bf97df0e16ee6262f078c73cae422fb7b7a8898ab  templates/issue.md
-14e9ad8494db81ae70477cb2174acdf691bf5db08063aa1a215bfe5600654dcb  templates/ledger.md
+29997d29fd18f754250d67e7a72a017ee919bf403368a60cc24fc1fb921ec697  templates/ledger.md
 b5b5a14af32ace5f840a124e3e5cb551b97633ec6160f09e6d69a967bd1ab138  templates/pattern.md
 7bf17e58651bd18d75556f42460470f5d9fb629bce5b9092772c1d12711a311b  vocabulary.md
