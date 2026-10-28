@@ -1,8 +1,8 @@
 # sha256 of every file in docs/kb/shared as of the last kb.py sync; do not edit by hand
 c2df4f2896a786478c49cc8cc1bb18d520ebe80e018c42641aacd84448dee991  .gitignore
-2e658a64729ab8965db4e7d882f9e36a452b0528a1efd1d934422d7203c47b01  PROCESS.md
+533a08fb084ac60d4ab4def37bd6194e7e595c0411774279d881698c0f34328b  PROCESS.md
 d826f65bee48c3484385802dccdfab171fb3b2f6aab7214e0e8f6e96f4d9e42b  boinc-api.md
-fd077358f730340f5d522a1b99af8a6684869b7316cd02bb6de10b858d4fc0aa  kb.py
+9929cbc1359993a410195185df2114bb2108aa9aaf17641acce3b896d13f2634  kb.py
 f6baa4ca06c87e8a3b0d873265ea1f5c095c455db8a9434ec7442e6e5f5f117c  patterns/PAT-001-checkpoint-critical-section-left-open.md
 9cea593949398e0ff5debc5d0d0b92818d41e69bca7adf9ff82087e32cc773e5  patterns/PAT-002-output-after-checkpoint-kept-on-resume.md
 475237bdd9812536fba4bd26340325d25077eb3ec6268bb4bfc7aa23884b3fa5  patterns/PAT-003-checkpoint-not-written-atomically.md
@@ -12,7 +12,7 @@ f6e12e28d97bccf9450a18a1728a98a5d1996fde2415b4e2b9ebd68108e0b9ed  patterns/PAT-0
 a00b4c2ea71bca8d3c0f5a49c88e3831f9b14cf9b353d14f1c12e11434d7f8f2  patterns/PAT-007-progress-not-reported-on-resume.md
 34487bc5af8dd329c4cca0c6e01d05a34560b8ebdf0af027031a0e30416ac6df  patterns/PAT-008-quit-or-abort-ends-task-as-success.md
 de0dbb77b8b2190c78dd53ef44daa48d12bfb757fabf49101ca41103a097b3a1  patterns/PAT-009-trickle-up-lost.md
-ef0ff34f1f93c0f09aace9b58ec3a2d07fe23befc44a80ee92b5e0b866ecbc30  patterns/PAT-010-eintr-from-boinc-timer-signal.md
+ec71107f5c14879e8674bcf88a9b49f8487acdcb2cb2ea420b4ce4d2e408b0ec  patterns/PAT-010-eintr-from-boinc-timer-signal.md
 d8663cd47c4e87898b5d45a5a708fef0653d0659a59caf2ad4e380811481dcc4  patterns/PAT-011-gpu-device-not-from-init-data.md
 cceed7bbe3f3588bff2fe7a6780d00103b1e6d7c78c37f82303af70875bee460  patterns/PAT-012-opencl-enumeration-differs-from-boinc.md
 16441abac0ae50639de073b21bd1c10dc2bf5273bf8ee8bb5088c08305eef470  patterns/PAT-013-transient-gpu-error-ends-task.md
@@ -33,8 +33,8 @@ b71e5f3f6937b03882c66566e0a59e7c415a48577ee891d86f35f15a34c1103f  patterns/PAT-0
 065d6bb4afd3798b9899ecd29e3970efdd4876c99dfc8fae5be0714280527af5  patterns/PAT-028-feature-silently-left-out-of-a-build.md
 3c8c304b53c611bdabb050a654b734d75904e85e94659b0d481404cec649484b  patterns/PAT-029-build-dependencies-not-pinned.md
 23581085812b25ffe966f6e442001f9d4b522224eeb19fd56bf25ef064dbbd0a  patterns/PAT-030-repeated-temporary-exits-hit-the-client-limit.md
-841d9db71e2954d4a0b19ae8568dc4f0c94ffb0c258636b1863753619247856a  templates/README.md
+72338fa018028bd91315c4e260f19b4bfd55052fe3380c810e5d9d94622e3a31  templates/README.md
 2d363ceb56d7ea20f82e940bf97df0e16ee6262f078c73cae422fb7b7a8898ab  templates/issue.md
 29997d29fd18f754250d67e7a72a017ee919bf403368a60cc24fc1fb921ec697  templates/ledger.md
-b5b5a14af32ace5f840a124e3e5cb551b97633ec6160f09e6d69a967bd1ab138  templates/pattern.md
+4d4f1789b346301b673c639b49228999ff6306b540bd72750f15f6ed6ad06aef  templates/pattern.md
 7bf17e58651bd18d75556f42460470f5d9fb629bce5b9092772c1d12711a311b  vocabulary.md

@@ -23,7 +23,7 @@ The mechanism, with the facts it rests on (link shared/boinc-api.md where it is 
 ## How to check a repository
 
 Concrete steps another repository can run: the grep commands, what a hit must look like to count as `affected`,
-what makes it `not-affected`, and what makes it `n/a`. Write the result into that repository's `docs/kb/ledger.md`.
+what makes it `not-affected`, and what makes it `n/a`. Record the result with that repository's `kb.py ledger`.
 
 ## How to fix
 

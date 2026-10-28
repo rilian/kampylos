@@ -34,7 +34,7 @@ event and days on an event whose single-lens anchor has no baseline (measurement
 | `src/kampylos_gpu_mag.cuh`, `src/kampylos_gpu_kernel.cu`, `src/gpu_fit_binary.{cu,h}` | CUDA |
 | `src/kampylos_kernel.cl`, `src/embed_kampylos_cl.py`, `src/kampylos_cl_embedded.h`, `src/kampylos_opencl_fit.{cpp,h}` | OpenCL (the embedded header is generated) |
 | `src/kampylos_metal_fit.{mm,h}` | Metal: MSL kernel as a string (double-single arithmetic), host side, self-test |
-| `src/fit_event.cpp` | standalone CLI; backend chosen with `-DKAMPYLOS_CLI_{CUDA,OPENCL,METAL}` |
+| `src/fit_event.cpp` | standalone CLI; backend chosen with `-DKAMPYLOS_CLI_{CUDA,OPENCL,METAL}`; ignores `part i K` (KAM-026) |
 | `src/model_curve_cli.cpp` | model light curve for the web site's plots (natural-log s, q) |
 | `boinc/` | the four BOINC mains, `kampylos_boinc_common.h` (input, output, checkpoints, CPU budget), `boinc/README.md` |
 | `tests/` | standalone tests (each file's header comment has its build line), `tests/boinc_stub/` (fake BOINC runtime), `tests/regression/` (end-to-end suite, expected results, synthetic planet light curve) |
@@ -65,7 +65,8 @@ event and days on an event whose single-lens anchor has no baseline (measurement
 - **VBMicrolensing is thread-safe only when patched.** `KampylosCpuPatchPool` uses more than one thread only if the
   library header defines `VBM_THREAD_SAFE` or `VBM_THREAD_LOCAL_STATICS`. In the GPU BOINC apps the thread count is
   the client's CPU budget (`init_data` ncpus, rounded down, at least 1; since 66a1ab3). The workers are created once and
-  never exit; the pool is created with `new` and never deleted (MinGW, KAM-010).
+  never exit; the pool is created with `new` and never deleted (MinGW, KAM-010). A suspend stops only the worker
+  thread, so pool threads finish their share of the current call first (KAM-027).
 - **Include order in the BOINC mains:** Kampylos headers (VBMicrolensing) before `boinc_api.h`/`filesys.h`, because
   windows.h's `scr2` macro collides with VBMicrolensing (KAM-014). Metal files need `-fobjc-arc`.
 - **Bad-point capacity:** `KAMPYLOS_MAX_BAD_POINTS` (`kampylos_gpu_types.h`, CUDA and OpenCL) and
@@ -90,8 +91,11 @@ event and days on an event whose single-lens anchor has no baseline (measurement
   file cannot be read or does not start with `# grid=`); `checkpoint` = the integer or -1. The task resumes at
   `min(checkpoint, have)` (or `have` without a checkpoint) and cuts `out` back to that many lines. With `have` = -1 it
   starts at cell 0 and opens `out` with `"w"`.
-- **Known gaps** in this contract are open issues:
-  `python3 docs/kb/shared/kb.py list --open --area checkpoint,io,boinc-lifecycle`. Read them before changing the resume code. No fsync, by design: `out` is the authority (KAM-017).
+- **Known gaps at 45a41d5:** an `out` that exists but cannot be opened is truncated (KAM-001); a checkpoint that lags
+  `out` by one cell makes the task cut that finished cell and redo it, and the cut rewrites `out` in place on every
+  resume (KAM-007; fix proposed in 7da5519, tag `archive/fix/resume-trust-output`, not merged); a failed checkpoint
+  write is still reported (KAM-004); write errors on `out` are not checked (KAM-003); no fsync (KAM-017, by design:
+  `out` is the authority); progress is not reported at resume start (KAM-019); text-mode files on Windows (KAM-023).
 - **In-cell checkpoints** are used only for the cell they name (GPU: also the same seed count and restart count);
   otherwise the cell starts over. They are deleted right after the cell checkpoint write (also when it failed).
 - **Critical sections:** each `boinc_time_to_checkpoint()` that returns 1 is followed by exactly one
@@ -100,7 +104,7 @@ event and days on an event whose single-lens anchor has no baseline (measurement
 - **Cadence:** the client's checkpoint period (60 s default) for in-cell state; inside a long GPU round the checkpoint
   waits for the end of a chunk (target `KAMPYLOS_BATCHED_CHUNK_SECONDS` = 15 s, measured per call).
 - **What a resume must reproduce:** a byte-identical `out` for the CPU app (`tests/test_boinc_resume.sh`); for the GPU
-  apps byte-identical with one completion thread, rounding-level differences with more (KAM-012).
+  apps byte-identical with one completion thread, rounding-level differences with more (KAM-012, question KAM-021).
 
 ## Building
 
@@ -126,9 +130,10 @@ clang++ -O2 -std=c++17 -fobjc-arc -I src -I $VBM -I <boinc>/api -I <boinc>/lib \
   `git -C vendor/VBMicrolensing checkout -- .` before building a GPU app.
 - CUDA: no BOINC build line in this repository. `src/gpu_fit_binary.h` explains that the wrapper `.cpp` and the `.cu`
   file go to `nvcc` as separate inputs; `tests/test_gpu_fit_binary.cu` shows an `nvcc -gencode` line, for `sm_120`
-  only.
+  only. The architectures and the minimum compute capability of the shipped CUDA app are not recorded (KAM-029).
 - OpenCL: needs `cl_dynload.{c,h}` from the parent repository (not here) and OpenCL headers; each vendor binary must be
-  built with `-DEXPECTED_GPU_VENDOR="..."` (`src/kampylos_opencl_fit.cpp`), or it does not check the platform vendor.
+  built with `-DEXPECTED_GPU_VENDOR="..."` (`src/kampylos_opencl_fit.cpp`). Without it the vendor check is silently off
+  and the first platform with any device is used (KAM-028).
 - Dependencies: VBMicrolensing is pinned by the submodule commit (a56b7bf). The BOINC libraries, the CUDA toolkit,
   OpenCL headers and `cl_dynload` come from the build machine or the parent repository; their versions are not
   recorded here.
@@ -167,7 +172,7 @@ clang++ -O2 -std=c++17 -fobjc-arc -I src -I $VBM -I <boinc>/api -I <boinc>/lib \
   SIGKILL only: it does not imitate the real client's quit, which flushes stdio (`docs/kb/shared/boinc-api.md`).
 - `thread_local` is expensive on macOS (`_tlv_get_addr`) and with emulated TLS (MinGW-w64 GCC, Android NDK below API
   29); MinGW-w64 also crashes when threads with VBMicrolensing `thread_local` objects exit (KAM-010).
-- Windows: `boinc_fopen` text modes write CRLF (PAT-019); the stub's `boinc_fopen` is plain `fopen`.
+- Windows: `boinc_fopen` text modes write CRLF (KAM-023); the stub's `boinc_fopen` is plain `fopen`.
 - Scratch binaries and work directories do not belong in the repository; `tests/test_boinc_resume.sh` takes a work dir.
 
 ## Conventions for changes
@@ -192,22 +197,20 @@ clang++ -O2 -std=c++17 -fobjc-arc -I src -I $VBM -I <boinc>/api -I <boinc>/lib \
   shared with other bitboinc apps, but since the file is not here, `docs/kb/kb.conf` has no `shared-code` line for it.
 - Code of the other apps that comments compare with (`opencl_search.c`, `metal_search.mm`, Keraunos, Potamos).
 - Release build scripts, BOINC library builds, Linux build containers, Android builds (CPU only, per README.md).
+- The MUSA GPU backend that README.md names (KAM-016).
 
 ## Knowledge base
 
-`docs/kb/` holds this repository's known bugs, platform traps and their fixes, and the bug patterns shared with the
-other bitboinc applications. This file names only rules, gotchas and design notes; the open issues are in the
-knowledge base, and the tool prints them more cheaply than the files:
+`docs/kb/` holds this repository's known bugs and platform traps, and the bug patterns shared with the other bitboinc
+applications. Workflow: [docs/kb/shared/PROCESS.md](docs/kb/shared/PROCESS.md).
 
-- What is ready to fix, one line each with its next step: `python3 docs/kb/shared/kb.py list --open --action fix`
-  (also `--area checkpoint`, `--platform windows`, `--action decide|verify|review`). Then read that issue's file and
-  the pattern it links (its "How to fix").
-- Across the bitboinc repositories checked out next to this one: `kb.py todo ../<repo> ...` groups their open issues
-  by shared pattern, so a fix is read once and made everywhere; `kb.py check PAT-NNN ../<repo> ...` checks a pattern.
-- Before debugging a symptom: `grep -ril "<words>" docs/kb ../*/docs/kb/issues`.
+- Ready to fix, with next steps: `python3 docs/kb/shared/kb.py list --open --action fix` (also `--area`,
+  `--platform`); then the issue's file and the pattern it links.
+- All repositories checked out next to this one: `kb.py todo`, then `kb.py todo --pattern PAT-NNN` for the next step
+  and place of each issue; `kb.py check PAT-NNN` checks a pattern everywhere.
+- Before debugging a symptom: `grep -ril "<words>" ../*/docs/kb/issues docs/kb/shared/patterns`.
 - New report: `kb.py new issue "symptom in a few words" area=... next=...`.
-- After a fix: `kb.py set KAM-NNN status=fix-proposed` (or `status=fixed fixed_in=<commit>` once merged) with
-  `--log "..."`; the ledger and INDEX.md follow. The commit names the issue (`KB: KAM-NNN`) and, if any, the
-  pattern (`Pattern: PAT-NNN`).
-- Before a pull request: `python3 docs/kb/shared/kb.py index && python3 docs/kb/shared/kb.py lint --strict`.
-  Workflow: [docs/kb/shared/PROCESS.md](docs/kb/shared/PROCESS.md).
+- After a fix: `kb.py set KAM-NNN status=fix-proposed --log "..."` (`status=fixed fixed_in=<commit>` once merged),
+  and update the lines of this file it prints. The commit names the issue (`KB: KAM-NNN`) and the pattern, if any
+  (`Pattern: PAT-NNN`).
+- Before a pull request: `kb.py index && kb.py lint --strict`.

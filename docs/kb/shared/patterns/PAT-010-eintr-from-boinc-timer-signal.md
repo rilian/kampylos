@@ -24,7 +24,7 @@ yet is restarted; sleeps, `poll()` and `select()` are not.
 
 ## Why it happens
 
-[boinc-api.md](../boinc-api.md#timer-and-signals-unix). Reads from regular files are not interrupted in practice; slow
+[boinc-api.md](../boinc-api.md#timer-signals-and-threads). Reads from regular files are not interrupted in practice; slow
 devices, pipes, sockets and all sleeps are.
 
 ## How to check a repository
