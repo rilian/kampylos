@@ -51,13 +51,15 @@ event and days on an event whose single-lens anchor has no baseline (measurement
   server parses result files with one parser (not in this repository). Do not change the format without the server.
 - **Same seeds, same answer on every backend.** All backends use `kampylos_make_seeds()`; the seed split is k % K == i
   in both `kampylos_cpu_cell.h` and `kampylos_seed_part()`. The final chi2/fs/fb of a cell is always recomputed on
-  the host (`kampylos_finalize_cell`). Backends and thread counts still differ at rounding level (KAM-012).
+  the host (`kampylos_finalize_cell`). Backends and thread counts still differ at rounding level (KAM-012); whether
+  and with what tolerance the server compares results across hosts and backends is an open question (KAM-025).
 - **Metal: fast math off, double-single arithmetic.** Metal has no `double`; fast math may delete the error-free
   transformations. `metal_fit_select_device()` turns it off and a self-test kernel refuses to run otherwise. Never
   "simplify" two_sum/two_prod or go back to float sums (KAM-013).
 - **GPU calls are checked.** Every Metal command buffer's status is read and a failed one re-submitted; every
   OpenCL call goes through `CL_CHECK`; CUDA calls through `CUDA_CHECK_RT`. A result read after an unchecked launch is
-  the previous round's.
+  the previous round's. A failed CUDA or OpenCL call ends the task as a computation error; only Metal exits
+  temporarily (KAM-002).
 - **Determinism.** Seeds, rounds and the completion step are deterministic for one backend: bad points are added in
   index order, and within one evaluation call candidate i goes to pool thread i % n. A resumed CPU cell is
   byte-identical to an uninterrupted one. New nondeterminism (thread order, unordered containers, uninitialised
@@ -91,11 +93,16 @@ event and days on an event whose single-lens anchor has no baseline (measurement
   file cannot be read or does not start with `# grid=`); `checkpoint` = the integer or -1. The task resumes at
   `min(checkpoint, have)` (or `have` without a checkpoint) and cuts `out` back to that many lines. With `have` = -1 it
   starts at cell 0 and opens `out` with `"w"`.
-- **Known gaps at 45a41d5:** an `out` that exists but cannot be opened is truncated (KAM-001); a checkpoint that lags
-  `out` by one cell makes the task cut that finished cell and redo it, and the cut rewrites `out` in place on every
-  resume (KAM-007; fix proposed in 7da5519, tag `archive/fix/resume-trust-output`, not merged); a failed checkpoint
-  write is still reported (KAM-004); write errors on `out` are not checked (KAM-003); no fsync (KAM-017, by design:
-  `out` is the authority); progress is not reported at resume start (KAM-019); text-mode files on Windows (KAM-023).
+- **Known gaps at 45a41d5:**
+  - An `out` that exists but cannot be opened is truncated (KAM-001).
+  - A checkpoint that lags `out` by one cell makes the task cut that finished cell and redo it, and the cut rewrites
+    `out` in place on every resume (KAM-007; fix proposed in 7da5519, tag `archive/fix/resume-trust-output`, not
+    merged).
+  - A failed checkpoint write is still reported (KAM-004).
+  - Write errors on `out` are not checked (KAM-003).
+  - No fsync (KAM-017, by design: `out` is the authority).
+  - Progress is not reported at resume start (KAM-019).
+  - `out` and the checkpoint files are written in text mode, so the Windows build writes CRLF (KAM-023).
 - **In-cell checkpoints** are used only for the cell they name (GPU: also the same seed count and restart count);
   otherwise the cell starts over. They are deleted right after the cell checkpoint write (also when it failed).
 - **Critical sections:** each `boinc_time_to_checkpoint()` that returns 1 is followed by exactly one
@@ -133,7 +140,8 @@ clang++ -O2 -std=c++17 -fobjc-arc -I src -I $VBM -I <boinc>/api -I <boinc>/lib \
   only. The architectures and the minimum compute capability of the shipped CUDA app are not recorded (KAM-029).
 - OpenCL: needs `cl_dynload.{c,h}` from the parent repository (not here) and OpenCL headers; each vendor binary must be
   built with `-DEXPECTED_GPU_VENDOR="..."` (`src/kampylos_opencl_fit.cpp`). Without it the vendor check is silently off
-  and the first platform with any device is used (KAM-028).
+  and the first platform with any device is used (KAM-028). Device selection also counts non-GPU devices, and an
+  out-of-range device index silently becomes device 0 (KAM-022).
 - Dependencies: VBMicrolensing is pinned by the submodule commit (a56b7bf). The BOINC libraries, the CUDA toolkit,
   OpenCL headers and `cl_dynload` come from the build machine or the parent repository; their versions are not
   recorded here.
@@ -166,7 +174,8 @@ clang++ -O2 -std=c++17 -fobjc-arc -I src -I $VBM -I <boinc>/api -I <boinc>/lib \
 ## Environment notes
 
 - A Mac with Apple Silicon builds and runs everything except CUDA and OpenCL. Keep Metal runs short when a BOINC
-  client also uses the GPU: the driver then aborts command buffers ("Internal Error (0000000e)"); the app retries.
+  client also uses the GPU: the driver then aborts command buffers ("Internal Error (0000000e)"); the app retries,
+  but the BOINC timer signal cuts the waits between retries short (KAM-024).
 - The stub checkpoints every `KAMPYLOS_STUB_CHECKPOINT_SECONDS` (0 = every opportunity; default 60) and reports a CPU
   budget of `KAMPYLOS_STUB_NCPUS` (default 1, so a GPU wrapper on the stub runs one completion thread). It kills with
   SIGKILL only: it does not imitate the real client's quit, which flushes stdio (`docs/kb/shared/boinc-api.md`).
@@ -205,12 +214,15 @@ clang++ -O2 -std=c++17 -fobjc-arc -I src -I $VBM -I <boinc>/api -I <boinc>/lib \
 applications. Workflow: [docs/kb/shared/PROCESS.md](docs/kb/shared/PROCESS.md).
 
 - Ready to fix, with next steps: `python3 docs/kb/shared/kb.py list --open --action fix` (also `--area`,
-  `--platform`); then the issue's file and the pattern it links.
+  `--platform`). Then `kb.py show KAM-NNN` for the issue and `kb.py show PAT-NNN` for the pattern it links, with the
+  BOINC API facts the pattern cites. In the code, read the functions that `where:` and the Cause name.
 - All repositories checked out next to this one: `kb.py todo`, then `kb.py todo --pattern PAT-NNN` for the next step
   and place of each issue; `kb.py check PAT-NNN` checks a pattern everywhere.
-- Before debugging a symptom: `grep -ril "<words>" ../*/docs/kb/issues docs/kb/shared/patterns`.
+- Before debugging a symptom: `grep -ril "<words>" ../*/docs/kb/issues docs/kb/shared/patterns`, then `kb.py show`
+  the ids it finds. Read other repositories through the shell (`kb.py show`, `git -C ../<repo> grep -n`, `sed -n`):
+  opening one of their files in an editor tool can load their whole AGENTS.md as well.
 - New report: `kb.py new issue "symptom in a few words" area=... next=...`.
 - After a fix: `kb.py set KAM-NNN status=fix-proposed --log "..."` (`status=fixed fixed_in=<commit>` once merged),
-  and update the lines of this file it prints. The commit names the issue (`KB: KAM-NNN`) and the pattern, if any
+  and update the passages of this file it prints. The commit names the issue (`KB: KAM-NNN`) and the pattern, if any
   (`Pattern: PAT-NNN`).
 - Before a pull request: `kb.py index && kb.py lint --strict`.

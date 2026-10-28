@@ -5,7 +5,7 @@ type: bug            # bug | gotcha | design-note | question (see shared/vocabul
 status: new          # new | confirmed | fix-proposed | fixed | documented | wont-fix | not-a-bug | duplicate
 severity: medium     # critical | high | medium | low | info
 platforms: [all]     # narrowest true tags: [windows, opencl], [android, aarch64], ...
-area: checkpoint     # one value from shared/vocabulary.md
+area:                # one value from shared/vocabulary.md (kb.py new issue prints them)
 action:              # optional: fix | decide | verify | review | none (derived from type and status when empty)
 next:                # one line: the change to make, the question to answer, or what to verify
 blocked_by: []       # issues that must be answered or fixed first
@@ -13,7 +13,7 @@ pattern:             # PAT-NNN, or [PAT-NNN, PAT-MMM], when this is an instance 
 aliases: []          # other names this issue had: plan or audit ids, forum thread titles
 reported: 2026-01-01
 source:              # where it came from: forum thread N, task stderr, audit YYYY-MM-DD, maintainer
-where:               # file:line @ commit (the commit the line numbers refer to)
+where:               # file:line that the fix changes @ commit (the commit the line numbers refer to)
 fixed_in:            # commit(s) or pull request, once fixed
 ---
 

@@ -8,7 +8,8 @@ bitboinc applications.
   maintainer decision, what must be verified, and fixes waiting for merge.
 * **Across all the repositories:** `kb.py todo` groups the open issues of every repository checked out next to
   this one by shared pattern, so one fix is read once and made everywhere (`kb.py todo --pattern PAT-NNN`).
-* **A report came in or something broke:** [shared/PROCESS.md](shared/PROCESS.md#workflow-for-an-incoming-report).
+* **A report came in or something broke:** [shared/PROCESS.md](shared/PROCESS.md#workflow).
+* **How the records work, and every command:** [shared/REFERENCE.md](shared/REFERENCE.md).
 * **BOINC API behaviour the code relies on:** [shared/boinc-api.md](shared/boinc-api.md).
 * **Bug classes from all the bitboinc applications:** [shared/patterns/](shared/patterns), with this repository's
   result for each in [ledger.md](ledger.md).

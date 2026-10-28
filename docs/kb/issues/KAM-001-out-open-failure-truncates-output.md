@@ -11,7 +11,7 @@ pattern: PAT-005
 aliases: [K-B2]
 reported: 2026-10-21
 source: audit 2026-10-21 (plan §1 and §6.4, K-B2)
-where: src/kampylos_wu.h:295-297 @ 45a41d5
+where: boinc/kampylos_boinc_common.h:180-205, src/kampylos_wu.h:295-297 @ 45a41d5
 fixed_in:
 ---
 

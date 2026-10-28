@@ -4,7 +4,7 @@ title: One line that names the class of defect
 status: active       # active | retired (never delete a pattern: retire it and say why)
 severity: medium     # the usual severity when a repository has it
 platforms: [all]
-area: checkpoint
+area:                # one value from shared/vocabulary.md
 applies_to:          # which code makes a repository a candidate, e.g. "calls boinc_time_to_checkpoint()"
 check:               # arguments of `git grep -nE` that find the candidate code, e.g. 'boinc_fopen|fopen' -- src
 origin:              # public repository and issue where it was first found, e.g. planodia PLA-001
