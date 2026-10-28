@@ -6,6 +6,7 @@ severity: high
 platforms: [all]
 area: data-pipeline
 applies_to: scripts that fetch or convert input data in units (files, chunks, pages) and keep a progress record to resume
+check: 'progress|done|resume|retry|requests\.|urllib|urlopen|wget|curl' -- '*.py' '*.sh'
 origin: nostos NOS-006
 reference_fix:
 added: 2026-10-27

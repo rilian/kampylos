@@ -6,6 +6,7 @@ severity: medium
 platforms: [opencl]
 area: device-selection
 applies_to: OpenCL kernels that use double
+check: 'cl_khr_fp64|CL_DEVICE_DOUBLE_FP_CONFIG|CL_DEVICE_EXTENSIONS|clCreateProgramWithSource'
 origin: kampylos KAM-005
 reference_fix:
 added: 2026-10-27

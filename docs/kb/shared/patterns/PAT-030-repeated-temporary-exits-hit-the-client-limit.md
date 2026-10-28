@@ -6,6 +6,7 @@ severity: medium
 platforms: [all]
 area: boinc-lifecycle
 applies_to: applications that call boinc_temporary_exit() (or exit without boinc_finish) as a normal way of waiting
+check: 'boinc_temporary_exit|exit\(0\)'
 origin: yarrow YAR-030
 reference_fix:
 added: 2026-10-27

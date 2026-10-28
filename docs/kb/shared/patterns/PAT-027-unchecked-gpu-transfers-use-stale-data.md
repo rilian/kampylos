@@ -6,6 +6,7 @@ severity: medium
 platforms: [cuda, opencl, metal]
 area: gpu-runtime
 applies_to: host code that copies data to or from a GPU, sets kernel arguments, or launches kernels
+check: 'clEnqueue(Read|Write|NDRange|Copy)|clSetKernelArg|clFinish|cudaMemcpy|cudaMemset|<<<|cudaGetLastError|cudaDeviceSynchronize|commandBuffer.*(status|error)'
 origin: planodia PLA-015
 reference_fix:
 added: 2026-10-27

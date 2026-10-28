@@ -6,6 +6,7 @@ severity: medium
 platforms: [aarch64, ppc64le, riscv64, i686, macos, windows, android, cuda, opencl, metal]
 area: determinism
 applies_to: applications whose results are compared between hosts (quorum, validator) or cut by thresholds
+check: 'ffp-contract|ffast-math|Ofast|fp:fast|march|mfma|mfpmath|fastMathEnabled'
 origin: phygas PHY-005
 reference_fix:
 added: 2026-10-27

@@ -6,6 +6,7 @@ severity: high
 platforms: [all]
 area: boinc-lifecycle
 applies_to: code that calls boinc_time_to_checkpoint() or boinc_begin_critical_section()
+check: 'boinc_time_to_checkpoint|boinc_checkpoint_completed|boinc_(begin|end)_critical_section'
 origin: planodia PLA-001
 reference_fix:
 added: 2026-10-27

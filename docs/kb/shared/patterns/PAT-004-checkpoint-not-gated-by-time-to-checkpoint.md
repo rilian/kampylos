@@ -6,6 +6,7 @@ severity: low
 platforms: [all]
 area: checkpoint
 applies_to: code that writes a checkpoint or calls boinc_checkpoint_completed()
+check: 'boinc_time_to_checkpoint|boinc_checkpoint_completed|checkpoint'
 origin: phygas PHY-003
 reference_fix:
 added: 2026-10-27

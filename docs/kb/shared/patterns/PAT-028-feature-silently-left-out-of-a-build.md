@@ -6,6 +6,7 @@ severity: high
 platforms: [all]
 area: build
 applies_to: code with preprocessor guards (#ifdef FEATURE) or configure-time options, built by more than one script
+check: '^[[:space:]]*#[[:space:]]*(if|ifdef|ifndef|elif).*[A-Z_]{4,}'
 origin: not public
 reference_fix:
 added: 2026-10-27

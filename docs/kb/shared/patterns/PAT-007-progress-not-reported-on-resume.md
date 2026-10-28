@@ -6,6 +6,7 @@ severity: low
 platforms: [all]
 area: boinc-lifecycle
 applies_to: applications that resume from a checkpoint and call boinc_fraction_done()
+check: 'boinc_fraction_done'
 origin: planodia PLA-005
 reference_fix:
 added: 2026-10-27

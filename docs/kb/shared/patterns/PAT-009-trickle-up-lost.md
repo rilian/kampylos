@@ -6,6 +6,7 @@ severity: medium
 platforms: [all]
 area: trickle
 applies_to: applications that call boinc_send_trickle_up()
+check: 'boinc_send_trickle_up'
 origin: yarrow YAR-006
 reference_fix:
 added: 2026-10-27

@@ -6,6 +6,7 @@ severity: low
 platforms: [all]
 area: build
 applies_to: build scripts that clone, download or install libraries or toolchains (BOINC, clFFT, container images, pip packages)
+check: 'git clone|git fetch|curl |wget |pip install|apt(-get)? install|docker (run|pull)|FROM ' -- '*.sh' '*.ps1' '*.bat' '*.py' 'Makefile*' 'Dockerfile*' '*.yaml' '*.yml'
 origin: not public
 reference_fix:
 added: 2026-10-27

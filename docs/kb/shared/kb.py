@@ -7,8 +7,12 @@ Standard library only, Python 3.8 or newer.
     python3 docs/kb/shared/kb.py lint [--strict]      check this repository's knowledge base
     python3 docs/kb/shared/kb.py index                rewrite docs/kb/INDEX.md
     python3 docs/kb/shared/kb.py list [--open] [--action fix] [--platform windows] [--area checkpoint] [--patterns]
-    python3 docs/kb/shared/kb.py new issue "Title" [--pattern PAT-001] [--type bug]
+    python3 docs/kb/shared/kb.py new issue "Title" [--pattern PAT-001] [--type bug] [key=value ...]
     python3 docs/kb/shared/kb.py new pattern "Title" [--siblings ../repo ...]
+    python3 docs/kb/shared/kb.py set KAM-004 status=fixed fixed_in=abc1234 [--log "text"]
+    python3 docs/kb/shared/kb.py ledger PAT-031 not-affected --evidence "file:line, or why" [--issue KAM-030]
+    python3 docs/kb/shared/kb.py todo ../repo [../repo ...] [--action fix]
+    python3 docs/kb/shared/kb.py check PAT-031 ../repo [../repo ...]
     python3 docs/kb/shared/kb.py sync ../repo [../repo ...] [--dry-run]
     python3 docs/kb/shared/kb.py status ../repo [../repo ...]
     python3 docs/kb/shared/kb.py init --name NAME --prefix ABC
@@ -16,12 +20,15 @@ Standard library only, Python 3.8 or newer.
 sync makes docs/kb/shared/ identical in this repository and the given ones and adds an
 "unchecked" ledger row for every pattern a repository has not looked at yet. status prints a
 cross-repository report (pattern ledger matrix, drift of files copied between repositories,
-open issues); it is printed only, never written into a repository.
+open issues); it is printed only, never written into a repository. set and ledger change one
+issue or one ledger row without opening the file, and keep the ledger and INDEX.md in step. todo
+and check work across repositories so that a pattern is fixed or checked everywhere in one go.
 """
 import argparse
 import datetime
 import hashlib
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -34,7 +41,11 @@ ROOT = KB.parent.parent                           # repository root
 ISSUE_FIELDS = ["id", "title", "type", "status", "severity", "platforms", "area", "action", "next", "blocked_by",
                 "pattern", "aliases", "reported", "source", "where", "fixed_in"]
 ISSUE_REQUIRED = ["id", "title", "type", "status", "severity", "platforms", "area", "reported"]
+PATTERN_FIELDS = ["id", "title", "status", "severity", "platforms", "area", "applies_to", "check", "origin",
+                  "reference_fix", "added"]
 PATTERN_REQUIRED = ["id", "title", "status", "severity", "platforms", "area", "applies_to", "added"]
+LIST_FIELDS = {"platforms", "blocked_by", "pattern", "aliases"}
+RAW_FIELDS = {"check"}           # kept as written: a git grep pattern may start with [ and end with ]
 CLOSED = {"fixed", "wont-fix", "not-a-bug", "duplicate", "documented"}
 SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"]
 LEDGER_COLUMNS = ["Pattern", "Status", "Checked", "Commit", "Issue", "Evidence"]
@@ -68,7 +79,7 @@ def parse_front_matter(path):
         if not m:
             raise ValueError("line %d: expected 'key: value'" % n)
         value = re.sub(r"\s{2,}#(\s.*)?$", "", m.group(2)).strip()   # template hints: two or more spaces, then #
-        if value.startswith("[") and value.endswith("]"):
+        if m.group(1) not in RAW_FIELDS and value.startswith("[") and value.endswith("]"):
             value = [v.strip() for v in value[1:-1].split(",") if v.strip()]
         fields[m.group(1)] = value
     return fields, text[end + 5:]
@@ -228,6 +239,8 @@ def lint(repo, strict=False):
         check_values(repo, where, p, ["severity", "platforms", "area"])
         if p.get("status") not in ("active", "retired"):
             repo.err(where, "status must be active or retired")
+        if p.get("status") == "active" and not p.get("check"):
+            repo.warn(where, "no 'check:' line (the git grep arguments kb.py check runs in every repository)")
         if p.get("added") and not DATE_RE.match(p["added"]):
             repo.err(where, "added must be YYYY-MM-DD")
 
@@ -263,6 +276,20 @@ def lint(repo, strict=False):
                 row = repo.ledger_row(pid)
                 if not row or iid not in re.findall(r"[A-Z]+-\d+", row["Issue"]):
                     repo.err(where, "links %s but the ledger row for %s does not list %s" % (pid, pid, iid))
+
+    # AGENTS.md is read at the start of every session and trusted: it may cite gotchas, design notes and closed
+    # issues (they explain a rule), but not open work, which stops being true the day it is fixed.
+    agents = repo.root / "AGENTS.md"
+    if agents.exists():
+        for n, line in enumerate(agents.read_text(encoding="utf-8").splitlines(), 1):
+            for iid in sorted(set(re.findall(r"\b%s-\d{3,}\b" % re.escape(prefix), line))):
+                issue = repo.issues.get(iid)
+                if not issue:
+                    repo.err("AGENTS.md:%d" % n, "%s: no such issue" % iid)
+                elif action_of(issue) != "none":
+                    (repo.err if strict else repo.warn)(
+                        "AGENTS.md:%d" % n, "cites %s, which is open (%s); AGENTS.md has to stay true when it is "
+                        "fixed: state the rule, or point to kb.py list" % (iid, action_of(issue)))
 
     lpath = "docs/kb/ledger.md"
     if not (repo.kb / "ledger.md").exists():
@@ -362,8 +389,9 @@ def render_index(repo):
                               len(groups.get("affected", [])), len(groups.get("fixed", [])),
                               len(groups.get("not-affected", [])) + len(groups.get("n/a", [])),
                               len(groups.get("unchecked", []))), "",
-           "Work from the top: pick an issue, read its file, and its pattern's \"How to fix\" if it has one. Filter in a",
-           "terminal instead of reading everything: `python3 docs/kb/shared/kb.py list --open --platform windows`.",
+           "Work from the top: pick an issue, read its file, and its pattern's \"How to fix\" if it has one. Coding",
+           "agents: `python3 docs/kb/shared/kb.py list --open --action fix` prints the same, one line per issue, and",
+           "`kb.py todo ../other ../repos` groups the open issues of every repository by pattern.",
            "Workflow: [shared/PROCESS.md](shared/PROCESS.md). Generated by `kb.py index`; do not edit by hand.", ""]
 
     for action, title, intro in ACTION_SECTIONS:
@@ -432,11 +460,12 @@ def render_index(repo):
 
 def list_items(repo, args):
     """One line per issue (or pattern): a cheap overview for people and coding agents."""
+    areas = set(args.area.split(",")) if args.area else None
     if args.patterns:
         for pid, p in sorted(repo.patterns.items()):
             if args.platform and args.platform not in as_list(p.get("platforms")):
                 continue
-            if args.area and p.get("area") != args.area:
+            if areas and p.get("area") not in areas:
                 continue
             row = repo.ledger_row(pid) or {}
             print("%s  %-4s  %-12s  %-16s  %s  [%s]" % (pid, SEV_SHORT.get(p.get("severity"), ""),
@@ -451,7 +480,7 @@ def list_items(repo, args):
             continue
         if args.platform and args.platform not in as_list(i.get("platforms")):
             continue
-        if args.area and i.get("area") != args.area:
+        if areas and i.get("area") not in areas:
             continue
         if args.pattern and args.pattern not in as_list(i.get("pattern")):
             continue
@@ -487,7 +516,7 @@ def fill_template(name, values):
     return text.replace("2026-01-01", today())
 
 
-def new_issue(repo, title, pattern, kind):
+def new_issue(repo, title, pattern, kind, assignments):
     prefix = repo.conf["prefix"]
     iid = "%s-%03d" % (prefix, next_number(repo.issues, prefix))
     path = repo.kb / "issues" / ("%s-%s.md" % (iid, slugify(title)))
@@ -497,8 +526,200 @@ def new_issue(repo, title, pattern, kind):
         values["pattern"] = pattern
     path.write_text(fill_template("issue.md", values), encoding="utf-8")
     print("created", repo.rel(path))
-    if pattern:
-        print("now list %s in the Issue column of the %s row in docs/kb/ledger.md" % (iid, pattern))
+    set_fields(Repo(KB), iid, assignments, None)
+
+
+# ---------------------------------------------------------------- set, ledger
+
+def parse_assignments(pairs):
+    values = {}
+    for pair in pairs:
+        key, sep, value = pair.partition("=")
+        if not sep or not re.match(r"^[a-z_]+$", key.strip()):
+            sys.exit("expected key=value, got %r" % pair)
+        values[key.strip()] = value.strip()
+    return values
+
+
+def format_value(key, value):
+    """Front-matter text of a value given on the command line; list fields take comma-separated values."""
+    if key not in LIST_FIELDS:
+        return value
+    items = [v.strip() for v in value.strip("[]").split(",") if v.strip()]
+    if key == "pattern" and len(items) == 1:
+        return items[0]
+    return "[%s]" % ", ".join(items)
+
+
+def set_front_matter(path, values, order):
+    """Replace or add 'key: value' lines in a file's front matter; new keys go where `order` puts them."""
+    text = path.read_text(encoding="utf-8")
+    end = text.find("\n---\n", 4)
+    head, rest = text[4:end].split("\n"), text[end:]
+    for key, value in values.items():
+        line = ("%s: %s" % (key, value)).rstrip()
+        at = [n for n, l in enumerate(head) if re.match(r"^%s:" % key, l)]
+        if at:
+            head[at[0]] = line
+            continue
+        pos = len(head)
+        if key in order:
+            before = order[:order.index(key)]
+            for n, l in enumerate(head):
+                m = re.match(r"^([a-z_]+):", l)
+                if m and m.group(1) in before:
+                    pos = n + 1
+        head.insert(pos, line)
+    path.write_text("---\n" + "\n".join(head) + rest, encoding="utf-8")
+
+
+def append_log(path, text):
+    """Add '- YYYY-MM-DD: text' at the end of the '## Log' section (created if missing)."""
+    content = path.read_text(encoding="utf-8").rstrip("\n")
+    entry = "- %s: %s" % (today(), text)
+    m = re.search(r"(?m)^## Log[ \t]*$", content)
+    if not m:
+        content += "\n\n## Log\n\n" + entry
+    else:
+        after = re.search(r"(?m)^## ", content[m.end():])
+        if after:
+            pos = m.end() + after.start()
+            content = content[:pos].rstrip("\n") + "\n" + entry + "\n\n" + content[pos:]
+        else:
+            content += "\n" + entry
+    path.write_text(content + "\n", encoding="utf-8")
+
+
+def write_ledger_row(kb, row):
+    """Replace the ledger row of row['Pattern'], or append it."""
+    path = kb / "ledger.md"
+    lines = path.read_text(encoding="utf-8").split("\n")
+    text = "| " + " | ".join(row.get(c, "").replace("|", "/") for c in LEDGER_COLUMNS) + " |"
+    for n, line in enumerate(lines):
+        if line.startswith("| %s |" % row["Pattern"]):
+            lines[n] = text
+            break
+    else:
+        while lines and not lines[-1]:
+            lines.pop()
+        lines += [text, ""]
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def short_commit(root, ref):
+    return git(root, "rev-parse", "--short", ref) or ref
+
+
+def ledger_follows_issue(repo, iid):
+    """After an issue changed: list it in its patterns' ledger rows, drop it from others, flip affected/fixed."""
+    issue = repo.issues[iid]
+    pats = as_list(issue.get("pattern"))
+    for row in repo.ledger:
+        ids = re.findall(r"[A-Z]+-\d+", row["Issue"])
+        pid, old = row["Pattern"], dict(row)
+        if pid not in pats and iid not in ids:
+            continue
+        if pid in pats and iid not in ids:
+            ids.append(iid)
+        if pid not in pats and iid in ids:
+            ids.remove(iid)
+        row["Issue"] = ", ".join(ids)
+        fixed = bool(ids) and all(repo.issues.get(i, {}).get("status") == "fixed" for i in ids)
+        if row["Status"] == "affected" and fixed:
+            commit = (re.findall(r"\b[0-9a-f]{7,40}\b", issue.get("fixed_in", "")) or [""])[0]
+            row.update(Status="fixed", Checked=today(), Commit=commit or short_commit(repo.root, "HEAD"),
+                       Evidence="fixed: %s; the issues have the details" % ", ".join(
+                           "%s in %s" % (i, repo.issues[i].get("fixed_in")) for i in ids))
+        elif row["Status"] == "fixed" and not fixed:
+            row.update(Status="affected", Checked=today(), Commit=short_commit(repo.root, "HEAD"),
+                       Evidence="reopened: %s is %s" % (iid, issue.get("status")))
+        elif row["Status"] == "affected" and issue.get("status") in CLOSED:
+            print("ledger %s stays affected: %s" % (pid, ", ".join(
+                "%s is %s" % (i, repo.issues.get(i, {}).get("status")) for i in ids
+                if repo.issues.get(i, {}).get("status") != "fixed")))
+        if row["Status"] in ("affected", "fixed") and not ids:
+            print("ledger %s is %s but lists no issue any more: set it with kb.py ledger" % (pid, row["Status"]))
+        if row != old:
+            write_ledger_row(repo.kb, row)
+            print("ledger %s: %s, issues %s" % (pid, row["Status"], row["Issue"] or "none"))
+    for pid in pats:
+        if pid in repo.patterns and not repo.ledger_row(pid):
+            write_ledger_row(repo.kb, {"Pattern": pid, "Status": "unchecked", "Issue": iid})
+            print("ledger %s: unchecked row added, issues %s" % (pid, iid))
+
+
+def set_fields(repo, iid, assignments, log):
+    """Change front-matter fields of an issue or a pattern without opening it; keep ledger and INDEX in step."""
+    is_pattern = iid in repo.patterns
+    item = repo.patterns.get(iid) or repo.issues.get(iid)
+    if not item:
+        sys.exit("%s: no such issue or pattern in this repository" % iid)
+    order = PATTERN_FIELDS if is_pattern else ISSUE_FIELDS
+    values = parse_assignments(assignments)
+    for key in values:
+        if key not in order or key == "id":
+            sys.exit("%s: cannot set '%s' (fields: %s)" % (iid, key, ", ".join(order[1:])))
+    probe = {k: [x.strip() for x in v.strip("[]").split(",") if x.strip()] if k in LIST_FIELDS else v
+             for k, v in values.items()}
+    before = len(repo.errors)
+    check_values(repo, iid, probe, ["severity", "platforms", "area"] if is_pattern else
+                 ["type", "status", "severity", "platforms", "area", "action"])
+    if is_pattern and probe.get("status", "active") not in ("active", "retired"):
+        repo.err(iid, "status must be active or retired")
+    if len(repo.errors) > before:
+        sys.exit("\n".join(repo.errors[before:]))
+    if not is_pattern:
+        status = values.get("status", item.get("status"))
+        if status in CLOSED and item.get("action") not in (None, "", "none") and "action" not in values:
+            values["action"] = ""
+        if status == "fixed" and not values.get("fixed_in", item.get("fixed_in")):
+            sys.exit("%s: status=fixed needs fixed_in=<commit or pull request>" % iid)
+    if values:
+        set_front_matter(item["_path"], {k: format_value(k, v) for k, v in values.items()}, order)
+    if log:
+        append_log(item["_path"], log)
+    for key, value in values.items():
+        old = item.get(key)
+        old = "[%s]" % ", ".join(old) if isinstance(old, list) else old
+        print("%s %s: %s -> %s" % (iid, key, old or "(empty)", format_value(key, value) or "(empty)"))
+    if is_pattern:
+        print("%s is a shared file: run kb.py sync with the other repositories" % repo.rel(item["_path"]))
+    else:
+        ledger_follows_issue(Repo(KB), iid)
+    write_index(Repo(KB))
+
+
+def ledger_set(repo, pid, status, issue_arg, evidence, commit):
+    """Set this repository's ledger row for a pattern; the date and commit are filled in."""
+    if pid not in repo.patterns:
+        sys.exit("%s: no such pattern in docs/kb/shared/patterns" % pid)
+    allowed = repo.vocab.get("ledger", [])
+    if allowed and status not in allowed:
+        sys.exit("status '%s' not in vocabulary.md (allowed: %s)" % (status, ", ".join(allowed)))
+    row = dict(repo.ledger_row(pid) or {"Pattern": pid})
+    ids = re.findall(r"[A-Z]+-\d+", issue_arg if issue_arg is not None else row.get("Issue", ""))
+    for iid in ids:
+        if iid not in repo.issues:
+            sys.exit("%s: no such issue in this repository" % iid)
+    if status in ("affected", "fixed") and not ids:
+        sys.exit("%s needs --issue (create it with: kb.py new issue \"...\" --pattern %s)" % (status, pid))
+    evidence = row.get("Evidence", "") if evidence is None else evidence
+    if status == "unchecked":
+        row.update(Checked="", Commit="", Evidence="")
+    elif not evidence:
+        sys.exit("--evidence is required: file:line of what was read, or why it does not apply")
+    else:
+        row.update(Checked=today(), Commit=short_commit(repo.root, commit or "HEAD"), Evidence=evidence)
+    row.update(Status=status, Issue=", ".join(ids))
+    write_ledger_row(repo.kb, row)
+    print("ledger %s: %s @ %s, issues %s" % (pid, status, row["Commit"] or "-", row["Issue"] or "none"))
+    for iid in ids:
+        pats = as_list(repo.issues[iid].get("pattern"))
+        if pid not in pats:
+            set_front_matter(repo.issues[iid]["_path"], {"pattern": format_value("pattern", ",".join(pats + [pid]))},
+                             ISSUE_FIELDS)
+            print("%s pattern: now links %s" % (iid, pid))
+    write_index(Repo(KB))
 
 
 def new_pattern(repo, title, siblings):
@@ -627,6 +848,74 @@ def sync(siblings, dry_run):
     print("dry run, nothing written" if dry_run else "shared files identical in %d repositories" % len(kbs))
 
 
+# ---------------------------------------------------------------- todo, check
+
+def todo(siblings, action):
+    """Open issues of this and the given repositories, grouped by pattern: read the pattern once, fix it everywhere."""
+    repos = [Repo(KB)] + [Repo(kb_of(s)) for s in siblings]
+    groups, loose, patterns = {}, {}, {}
+    for r in repos:
+        for pid, p in r.patterns.items():
+            patterns.setdefault(pid, p)
+        for i in sorted(r.issues.values(), key=sev_key):
+            act = action_of(i)
+            if act == "none" or (action and act != action):
+                continue
+            pats = as_list(i.get("pattern"))
+            if not pats:
+                loose[r.name] = loose.get(r.name, 0) + 1
+            for pid in pats:
+                groups.setdefault(pid, []).append((r.name, i, act))
+
+    def order(pid):
+        return (-len({name for name, _, _ in groups[pid]}), sev_key(patterns.get(pid, {})), pid)
+
+    for pid in sorted(groups, key=order):
+        p, items = patterns.get(pid, {}), groups[pid]
+        print("%s  %-4s  %s  (%d issues in %d repositories)" % (
+            pid, SEV_SHORT.get(p.get("severity"), ""), p.get("title", ""), len(items),
+            len({name for name, _, _ in items})))
+        if p.get("reference_fix"):
+            print("  reference fix: %s" % p["reference_fix"])
+        for name, i, act in items:
+            print("  %-12s %-8s %-4s %-6s %s" % (name, i["id"], SEV_SHORT.get(i.get("severity"), ""), act,
+                                                i.get("next", "")))
+        print()
+    print("Open issues that are not an instance of a pattern (kb.py list --open in that repository): %s"
+          % (", ".join("%s %d" % (n, c) for n, c in loose.items()) or "none"))
+
+
+def check(pid, siblings, limit):
+    """First pass of a pattern in this and the given repositories: ledger row and the hits of its check grep."""
+    repos = [Repo(KB)] + [Repo(kb_of(s)) for s in siblings]
+    p = next((r.patterns[pid] for r in repos if pid in r.patterns), None)
+    if not p:
+        sys.exit("%s: no such pattern" % pid)
+    print("%s  %s" % (pid, p.get("title", "")))
+    if not p.get("check"):
+        sys.exit("no 'check:' line in %s: follow its \"How to check a repository\"" % pid)
+    args = shlex.split(p["check"])
+    args += [":(exclude)docs/kb"] if "--" in args else ["--", ".", ":(exclude)docs/kb"]
+    print("git grep -nE %s\nA hit is only a place to read; the pattern's \"How to check a repository\" decides.\n"
+          % p["check"])
+    for r in repos:
+        row = r.ledger_row(pid) or {}
+        state = (row.get("Status") or "unchecked") if pid in r.patterns else "pattern not synced here"
+        if row.get("Commit"):
+            state += " @ %s" % row["Commit"]
+        if row.get("Issue"):
+            state += " (%s)" % row["Issue"]
+        res = subprocess.run(["git", "-C", str(r.root), "grep", "-nE"] + args, capture_output=True, text=True)
+        hits = res.stdout.splitlines()
+        print("%s: %s; %d hit(s)" % (r.name, state, len(hits)))
+        for h in hits[:limit]:
+            print("  " + (h if len(h) <= 160 else h[:157] + "..."))
+        if len(hits) > limit:
+            print("  ... %d more" % (len(hits) - limit))
+        if res.returncode > 1:
+            print("  git grep failed: %s" % res.stderr.strip())
+
+
 # ---------------------------------------------------------------- status
 
 ABBREV = {"affected": "AFFECTED", "fixed": "fixed", "not-affected": "ok", "n/a": "n/a", "unchecked": "?"}
@@ -722,7 +1011,7 @@ def main():
     p.add_argument("--open", action="store_true", help="only issues that still need something done")
     p.add_argument("--action", help="fix, decide, verify or review")
     p.add_argument("--platform", help="a platform tag, e.g. windows (issues tagged 'all' are not included)")
-    p.add_argument("--area", help="an area, e.g. checkpoint")
+    p.add_argument("--area", help="an area, or several comma-separated, e.g. checkpoint,io")
     p.add_argument("--pattern", help="issues that are instances of this pattern")
     p.add_argument("--patterns", action="store_true", help="list the shared patterns with their status here")
     p = sub.add_parser("new", help="create an issue or a pattern from the template")
@@ -731,6 +1020,24 @@ def main():
     p.add_argument("--pattern", help="issue: the cross-repository pattern it is an instance of")
     p.add_argument("--type", default="bug", help="issue: bug, gotcha, design-note or question")
     p.add_argument("--siblings", nargs="*", default=[], help="pattern: other repositories, so the number is free everywhere")
+    p.add_argument("fields", nargs="*", metavar="key=value", help="issue: fields to fill in at once, e.g. area=io next=...")
+    p = sub.add_parser("set", help="change fields of an issue (or pattern) without opening it; ledger and INDEX follow")
+    p.add_argument("id")
+    p.add_argument("fields", nargs="*", metavar="key=value", help="e.g. status=fixed fixed_in=abc1234; lists: a,b")
+    p.add_argument("--log", help="append a dated line to the issue's Log")
+    p = sub.add_parser("ledger", help="set this repository's ledger row for a pattern (date and commit filled in)")
+    p.add_argument("pattern")
+    p.add_argument("status", help="affected, fixed, not-affected, n/a or unchecked")
+    p.add_argument("--issue", help="local issue id(s), comma-separated (affected and fixed need one)")
+    p.add_argument("--evidence", help="file:line of what was read, or why the pattern does not apply")
+    p.add_argument("--commit", default="HEAD", help="the commit that was read (default HEAD)")
+    p = sub.add_parser("todo", help="open issues of this and the given repositories, grouped by pattern (printed only)")
+    p.add_argument("repos", nargs="*")
+    p.add_argument("--action", help="fix, decide, verify or review")
+    p = sub.add_parser("check", help="a pattern's ledger row and check-grep hits in this and the given repositories")
+    p.add_argument("pattern")
+    p.add_argument("repos", nargs="*")
+    p.add_argument("--limit", type=int, default=8, help="hits shown per repository (default 8)")
     p = sub.add_parser("sync", help="make docs/kb/shared identical in this and the given repositories")
     p.add_argument("repos", nargs="+")
     p.add_argument("--dry-run", action="store_true")
@@ -739,12 +1046,20 @@ def main():
     p = sub.add_parser("init", help="start a knowledge base in this repository")
     p.add_argument("--name", required=True)
     p.add_argument("--prefix", required=True, help="issue id prefix, 2-5 capital letters")
-    args = ap.parse_args()
+    args, extra = ap.parse_known_args()      # key=value pairs may also come after an option
+    if extra and (args.cmd not in ("new", "set") or any(e.startswith("-") or "=" not in e for e in extra)):
+        ap.error("unrecognized arguments: %s" % " ".join(extra))
+    if extra:
+        args.fields += extra
 
     if args.cmd == "sync":
         return sync(args.repos, args.dry_run)
     if args.cmd == "status":
         return status(args.repos)
+    if args.cmd == "todo":
+        return todo(args.repos, args.action)
+    if args.cmd == "check":
+        return check(args.pattern, args.repos, args.limit)
     if args.cmd == "init":
         return init(args.name, args.prefix)
     repo = Repo(KB)
@@ -753,11 +1068,17 @@ def main():
         print("wrote docs/kb/INDEX.md")
     elif args.cmd == "list":
         list_items(repo, args)
+    elif args.cmd == "set":
+        if not args.fields and not args.log:
+            sys.exit("nothing to set: give key=value pairs and/or --log")
+        set_fields(repo, args.id, args.fields, args.log)
+    elif args.cmd == "ledger":
+        ledger_set(repo, args.pattern, args.status, args.issue, args.evidence, args.commit)
     elif args.cmd == "new":
         if repo.conf is None:
             sys.exit("docs/kb/kb.conf missing (run kb.py init first)")
         if args.what == "issue":
-            new_issue(repo, args.title, args.pattern, args.type)
+            new_issue(repo, args.title, args.pattern, args.type, args.fields)
         else:
             new_pattern(repo, args.title, args.siblings)
     elif args.cmd == "lint":

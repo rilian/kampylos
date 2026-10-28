@@ -6,6 +6,7 @@ severity: low
 platforms: [all]
 area: build
 applies_to: build scripts, Makefiles, data-preparation scripts
+check: '(^|[^A-Za-z])[A-Za-z]:[\\/]|/mnt/[a-z]/|/home/[^/$ ]+/|/Users/[^/$ ]+/' -- '*.sh' '*.ps1' '*.bat' '*.py' 'Makefile*' '*.mk' '*.cmake'
 origin: planodia PLA-008
 reference_fix:
 added: 2026-10-27

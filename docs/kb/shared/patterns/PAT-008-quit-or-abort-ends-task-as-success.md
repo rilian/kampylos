@@ -6,6 +6,7 @@ severity: medium
 platforms: [all]
 area: boinc-lifecycle
 applies_to: applications that poll boinc_get_status() or handle quit and abort themselves (long-running monitors)
+check: 'quit_request|abort_request|boinc_get_status|direct_process_action|no_heartbeat'
 origin: yarrow YAR-004
 reference_fix:
 added: 2026-10-27

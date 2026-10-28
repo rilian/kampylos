@@ -6,6 +6,7 @@ severity: high
 platforms: [windows, mingw]
 area: build
 applies_to: Windows builds made with MinGW-w64 GCC (winpthreads, emulated TLS) whose threads use thread_local objects with destructors
+check: 'thread_local|__thread|std::thread|pthread_create|#pragma omp|std::async'
 origin: kampylos KAM-010
 reference_fix: kampylos@5a5ffff (src/kampylos_cpu_patch_pool.h: persistent worker threads that never exit)
 added: 2026-10-27

@@ -6,6 +6,7 @@ severity: medium
 platforms: [all]
 area: checkpoint
 applies_to: every write of a checkpoint, a state file, or a trimmed output file
+check: 'checkpoint|_state|\.tmp|rename\(|boinc_rename|fclose|trim'
 origin: phygas PHY-002
 reference_fix: kampylos@3d32938 (boinc/kampylos_boinc_common.h: temporary file, checked close, boinc_rename)
 added: 2026-10-27

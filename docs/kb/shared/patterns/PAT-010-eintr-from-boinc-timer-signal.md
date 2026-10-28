@@ -6,6 +6,7 @@ severity: high
 platforms: [unix]
 area: boinc-lifecycle
 applies_to: code running in a BOINC worker that sleeps, waits, or reads from devices, pipes or sockets
+check: '(^|[^A-Za-z0-9_])(sleep|usleep|nanosleep|clock_nanosleep|poll|select|pselect|read|recv|waitpid) *\('
 origin: yarrow YAR-003
 reference_fix: yarrow@5e1164b
 added: 2026-10-27

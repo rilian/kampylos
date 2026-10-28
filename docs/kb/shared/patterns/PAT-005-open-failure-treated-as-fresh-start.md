@@ -6,6 +6,7 @@ severity: medium
 platforms: [all]
 area: checkpoint
 applies_to: resume code that opens an existing output or checkpoint file
+check: 'boinc_fopen\([^)]*"r|fopen\([^)]*"r'
 origin: kampylos KAM-001
 reference_fix:
 added: 2026-10-27

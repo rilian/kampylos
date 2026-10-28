@@ -6,6 +6,7 @@ severity: medium
 platforms: [cuda, windows, linux]
 area: build
 applies_to: CUDA (and other ahead-of-time compiled GPU) builds
+check: 'gencode|-arch[ =]|sm_[0-9]+|compute_[0-9]+|nvcc|cuda:[0-9]|CUDA_PATH'
 origin: nostos NOS-021
 reference_fix:
 added: 2026-10-27

@@ -6,6 +6,7 @@ severity: medium
 platforms: [cuda, opencl, metal]
 area: gpu-runtime
 applies_to: GPU applications
+check: 'boinc_finish\(1\)|exit\(1\)|exit\(EXIT_FAILURE\)|abort\(\)|fail\('
 origin: kampylos KAM-002
 reference_fix: kampylos@5a65505 (Metal: device unavailable -> boinc_temporary_exit)
 added: 2026-10-27

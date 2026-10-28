@@ -6,6 +6,7 @@ severity: medium
 platforms: [windows, cuda, opencl, metal]
 area: gpu-runtime
 applies_to: GPU applications whose single kernel launch or command buffer can run longer than about a second on a slow GPU
+check: 'clEnqueueNDRangeKernel|<<<|cudaLaunch|commandBuffer|dispatchThreadgroups'
 origin: kampylos KAM-011
 reference_fix: kampylos@53723b7 (Metal command buffers split and retried)
 added: 2026-10-27

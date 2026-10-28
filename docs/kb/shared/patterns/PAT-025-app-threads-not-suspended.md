@@ -6,6 +6,7 @@ severity: low
 platforms: [all]
 area: boinc-lifecycle
 applies_to: applications that start their own threads (thread pools, OpenMP, std::thread, async I/O threads)
+check: 'std::thread|pthread_create|#pragma omp|std::async|CreateThread|_beginthread|boinc_init_parallel|multi_thread'
 origin: kampylos KAM-027
 reference_fix:
 added: 2026-10-27

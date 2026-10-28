@@ -6,6 +6,7 @@ severity: high
 platforms: [cuda, opencl, metal]
 area: device-selection
 applies_to: GPU applications
+check: 'gpu_opencl_dev_index|gpu_device_num|--device|device_id|boinc_get_opencl_ids'
 origin: kampylos KAM-008
 reference_fix: kampylos@b5f5ef2 (boinc/main_kampylos_opencl_boinc.cpp, boinc/main_kampylos_gpu_boinc.cpp)
 added: 2026-10-27

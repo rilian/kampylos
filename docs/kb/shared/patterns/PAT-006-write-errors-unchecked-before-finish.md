@@ -6,6 +6,7 @@ severity: low
 platforms: [all]
 area: io
 applies_to: applications that write a result file
+check: 'boinc_finish\(0\)|fclose|fflush|ferror'
 origin: kampylos KAM-003
 reference_fix:
 added: 2026-10-27

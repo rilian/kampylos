@@ -52,13 +52,27 @@ Platform knowledge is not kept in a separate file per platform: every issue and 
 `INDEX.md` lists the open issues per platform, and `kb.py list --platform android` (add `--patterns` for the
 patterns) prints everything tagged with a platform, one line each. To add a platform, add a row to `vocabulary.md`.
 
-## Reading it cheaply
+## Reading and writing it cheaply
 
-For a person or a coding agent the order is: `INDEX.md` (what to work on), then one issue file, then the pattern it
-links (its "How to fix"), then `boinc-api.md` only for the facts that pattern cites. `kb.py list` prints one line per
-issue with filters (`--open`, `--action fix`, `--platform windows`, `--area checkpoint`, `--pattern PAT-003`), which is
-cheaper than opening files. Issue files start with the facts that matter (front matter: status, action, next, where);
-the body is for whoever works on that issue.
+A coding agent starts with `kb.py list --open --action fix` (one line per issue with its next step; `INDEX.md` says
+the same for people on GitHub, at three times the size), then one issue file, then the pattern it links (its "How
+to fix"), then `boinc-api.md` only for the facts that pattern cites. `kb.py list` filters by `--action`,
+`--platform`, `--area` and `--pattern`. Issue files start with the facts that matter (front matter: status, action,
+next, where); the body is for whoever works on that issue.
+
+Bookkeeping does not need the files opened: `kb.py set` changes front-matter fields and appends to the Log, and
+`kb.py ledger` writes a ledger row (date and commit filled in). Both keep the ledger, the issues' `pattern:` links
+and `INDEX.md` consistent. Open a file only to write its Symptom, Cause, Fix or Test.
+
+**Work by pattern, not repository by repository.** Most open issues are instances of a pattern that several
+repositories share. `kb.py todo ../kampylos ../phygas ...` lists the open issues of every repository grouped by
+pattern, with each one's next step and the pattern's `reference_fix`: read the pattern and the reference fix once,
+then make the same fix in each repository. `kb.py check PAT-NNN ../kampylos ../phygas ...` does the first pass of a
+pattern everywhere at once: the ledger row of each repository and the hits of the pattern's `check:` grep.
+
+`AGENTS.md` (read at the start of every session) describes what stays true: rules, contracts, gotchas and design
+notes, which it may cite by id. It does not list open issues; they stop being true the day they are fixed, so it
+points to `kb.py list` instead. `kb.py lint` warns when `AGENTS.md` cites an open issue (an error with `--strict`).
 
 ## Workflow for an incoming report
 
@@ -66,9 +80,10 @@ the body is for whoever works on that issue.
    text the reporter gave (task stderr, error message, client version, platform) and `source:` (forum thread number,
    task page, audit, maintainer), and `next:` (what to verify). No user names, host names, e-mail or IP addresses: see
    Rules. An incomplete record is better than none; `INDEX.md` shows `new` issues under "Verify first".
-2. **Search before debugging.** `grep -ril "<key words>" docs/kb` here and in the sibling repositories, and look at the
-   patterns for the area and platform. If it is a known pattern, link it (`pattern:`), and the pattern's "How to fix"
-   is the starting point.
+2. **Search before debugging.** `grep -ril "<key words>" docs/kb ../*/docs/kb/issues` (this repository's knowledge
+   base, shared files included, and the other repositories' issues, without five more copies of the shared files),
+   and `kb.py list --patterns --area <area>` for the patterns of the area. If it is a known pattern, link it
+   (`kb.py set PFX-NNN pattern=PAT-NNN`), and the pattern's "How to fix" is the starting point.
 3. **Confirm.** Reproduce it, or confirm it by reading the code at a named commit. Fill in Cause with file:line and
    `where:` with the commit those line numbers refer to. Status `confirmed`, and `next:` the change to make. If the fix
    needs a maintainer's answer, `action: decide` with the question in `next:` (or a separate `type: question` issue
@@ -77,18 +92,24 @@ the body is for whoever works on that issue.
 4. **Ask: is this a class?** If the cause is not specific to this application (a BOINC API rule, a platform or
    toolchain trap, a mistake that copied code could repeat), make it a pattern, or link the existing one:
    `kb.py new pattern "..." --siblings ../other ../repos` picks a free number everywhere. Write "How to check a
-   repository" so that it can be done without knowing this one: grep commands and what a hit must look like.
+   repository" so that it can be done without knowing this one: grep commands and what a hit must look like. Put
+   the main grep into the front matter as `check:` (the arguments of `git grep -nE`), which `kb.py check` runs.
 5. **Fix** on a branch, one fix per commit, with a test that fails before the fix where that is possible. The commit
    message names the issue (`KB: PLA-004`) and the pattern if any (`Pattern: PAT-001`). Status `fix-proposed`, then
-   `fixed` with `fixed_in:` once it is merged upstream. Write the Fix and Test sections for the next reader: what was
-   changed, why this way, what was rejected, what it changes for volunteers.
+   `fixed` once it is merged upstream: `kb.py set PLA-004 status=fixed fixed_in=<commit> --log "..."`, which also
+   turns the pattern's ledger row to `fixed` when every issue it lists is fixed. Write the Fix and Test sections for
+   the next reader: what was changed, why this way, what was rejected, what it changes for volunteers. If the
+   pattern has no `reference_fix:` yet, set it (`kb.py set PAT-001 reference_fix=planodia@<commit>`, then sync), and
+   make the same fix in the other repositories the pattern affects (`kb.py todo`).
 6. **Propagate.** Run `kb.py sync ../kampylos ../phygas ...` from the repository where the pattern was written. Every
    other repository gets the pattern file and an `unchecked` ledger row. Check each one (step 7). The pattern's
    `reference_fix:` names the commit others can copy.
-7. **Check another repository for a pattern**: follow the pattern's "How to check a repository", then fill in that
-   repository's ledger row: Status, Checked (date), Commit (`git rev-parse --short HEAD` of what you read), Issue,
-   Evidence (file:line, or why it does not apply). If affected, create the local issue there (step 1, with
-   `--pattern`) and fix it there (step 5).
+7. **Check another repository for a pattern**: `kb.py check PAT-NNN ../kampylos ../phygas ...` shows where to look
+   in every repository at once; follow the pattern's "How to check a repository", then record the result with that
+   repository's copy of the tool: `python3 ../phygas/docs/kb/shared/kb.py ledger PAT-NNN not-affected --evidence
+   "file:line, or why it does not apply"` (Checked and Commit are filled in from today and HEAD). If affected, create
+   the local issue there (`kb.py new issue "..." --pattern PAT-NNN area=... next=...`, step 1), record the row with
+   `--issue`, and fix it there (step 5).
 8. **Before every pull request**: `kb.py index` and `kb.py lint --strict` (fails on errors and on unchecked patterns).
    `kb.py status ../other ../repos` prints the cross-repository matrix.
 
@@ -119,7 +140,8 @@ in the repository that differs) or a fix that has not been copied yet (record an
 * **Measured, dated claims.** "Verified" means read at a named commit or reproduced; say which. Date the entries in
   an issue's Log.
 * **Line numbers go stale.** Always give the commit they refer to (`where:` in an issue, Commit in the ledger).
-* `kb.py status` output may name repositories that are not public. Do not paste it into a public place.
+* `kb.py status`, `todo` and `check` output may name repositories that are not public. Do not paste it into a public
+  place.
 
 ## Commands
 
@@ -127,8 +149,12 @@ in the repository that differs) or a fix that has not been copied yet (record an
 python3 docs/kb/shared/kb.py lint [--strict]
 python3 docs/kb/shared/kb.py index
 python3 docs/kb/shared/kb.py list [--open] [--action fix] [--platform windows] [--area checkpoint] [--patterns]
-python3 docs/kb/shared/kb.py new issue "Title" [--pattern PAT-001] [--type gotcha]
+python3 docs/kb/shared/kb.py new issue "Title" [--pattern PAT-001] [--type gotcha] [area=io severity=low next=...]
 python3 docs/kb/shared/kb.py new pattern "Title" --siblings ../kampylos ../phygas ...
+python3 docs/kb/shared/kb.py set PLA-004 key=value ... [--log "text"]          (lists: platforms=windows,mingw)
+python3 docs/kb/shared/kb.py ledger PAT-001 STATUS --evidence "..." [--issue PLA-004] [--commit HEAD]
+python3 docs/kb/shared/kb.py todo ../kampylos ../phygas ... [--action fix]
+python3 docs/kb/shared/kb.py check PAT-001 ../kampylos ../phygas ... [--limit 8]
 python3 docs/kb/shared/kb.py sync ../kampylos ../phygas ... [--dry-run]
 python3 docs/kb/shared/kb.py status ../kampylos ../phygas ...
 python3 docs/kb/shared/kb.py init --name NAME --prefix ABC        (new repository, after a sync into it)

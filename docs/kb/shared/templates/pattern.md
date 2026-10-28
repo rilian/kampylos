@@ -6,6 +6,7 @@ severity: medium     # the usual severity when a repository has it
 platforms: [all]
 area: checkpoint
 applies_to:          # which code makes a repository a candidate, e.g. "calls boinc_time_to_checkpoint()"
+check:               # arguments of `git grep -nE` that find the candidate code, e.g. 'boinc_fopen|fopen' -- src
 origin:              # public repository and issue where it was first found, e.g. planodia PLA-001
 reference_fix:       # repository@commit of a fix others can copy, once one exists
 added: 2026-01-01

@@ -6,6 +6,7 @@ severity: medium
 platforms: [opencl]
 area: gpu-runtime
 applies_to: OpenCL kernel launches with an explicit local work size
+check: 'clEnqueueNDRangeKernel|reqd_work_group_size|__local'
 origin: kampylos KAM-006
 reference_fix: kampylos@a65e139 (proposed, not merged; see kampylos KAM-006)
 added: 2026-10-27

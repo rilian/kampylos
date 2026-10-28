@@ -6,6 +6,7 @@ severity: high
 platforms: [android, opencl]
 area: device-selection
 applies_to: Android builds that load the OpenCL library with dlopen (cl_dynload.c)
+check: 'dlopen|android_dlopen_ext|libOpenCL'
 origin: planodia PLA-007
 reference_fix: planodia@3f6c1b7 (src/cl_dynload.c)
 added: 2026-10-27

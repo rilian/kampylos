@@ -6,6 +6,7 @@ severity: high
 platforms: [linux]
 area: build
 applies_to: Linux builds that link glibc dynamically (typically GPU builds; CPU builds that are not fully static)
+check: 'ubuntu:|debian:|nvidia/cuda:|FROM '
 origin: nostos NOS-005
 reference_fix: phygas scripts/build_gpu_server.sh (Ubuntu 20.04 containers, glibc 2.31, checked at the end)
 added: 2026-10-27

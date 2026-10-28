@@ -6,6 +6,7 @@ severity: low
 platforms: [windows]
 area: io
 applies_to: applications that write or parse files and ship a Windows build
+check: 'fopen\([^)]*"[rwa]\+?"'
 origin: phygas PHY-006
 reference_fix:
 added: 2026-10-27

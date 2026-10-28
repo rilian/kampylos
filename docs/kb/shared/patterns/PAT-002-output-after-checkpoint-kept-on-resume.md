@@ -6,6 +6,7 @@ severity: high
 platforms: [all]
 area: checkpoint
 applies_to: applications that append results to an output file item by item and resume from a checkpoint
+check: 'fopen\(.*"ab?"|boinc_time_to_checkpoint|trim'
 origin: phygas PHY-001
 reference_fix: planodia@3f6c1b7 (src/main_planodia_boinc.cpp trim_output(): the output is cut back to the checkpoint)
 added: 2026-10-27

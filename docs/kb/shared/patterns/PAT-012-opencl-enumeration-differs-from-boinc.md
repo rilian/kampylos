@@ -6,6 +6,7 @@ severity: medium
 platforms: [opencl]
 area: device-selection
 applies_to: OpenCL applications that enumerate platforms and devices themselves
+check: 'clGetPlatformIDs|clGetDeviceIDs|CL_DEVICE_TYPE_|CL_PLATFORM_VENDOR|gpu_type|boinc_get_opencl_ids'
 origin: kampylos KAM-009
 reference_fix: kampylos@d7f9ef7 (platform chosen by the vendor BOINC assigned)
 added: 2026-10-27

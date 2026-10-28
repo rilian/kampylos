@@ -6,6 +6,7 @@ severity: low
 platforms: [all]
 area: determinism
 applies_to: code whose output order or selection depends on std::sort, std::partial_sort, std::nth_element, std::make_heap or qsort with possible ties
+check: 'std::(sort|partial_sort|nth_element|make_heap|sort_heap|priority_queue)|(^|[^A-Za-z0-9_])qsort *\('
 origin: planodia PLA-011
 reference_fix:
 added: 2026-10-27
